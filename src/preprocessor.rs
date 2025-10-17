@@ -3,8 +3,8 @@ use alloc::{vec, vec::Vec};
 use rbpf::ebpf::{self, to_insn_vec};
 
 use crate::{
-    linux_bpf::{BPF_PSEUDO_MAP_FD, BPF_PSEUDO_MAP_VALUE},
     KernelAuxiliaryOps, Result,
+    linux_bpf::{BPF_PSEUDO_MAP_FD, BPF_PSEUDO_MAP_VALUE},
 };
 
 pub struct EBPFPreProcessor {
@@ -54,7 +54,9 @@ impl EBPFPreProcessor {
                         let map_ptr = F::get_unified_map_ptr_from_fd(map_fd as u32)? as usize;
                         log::info!(
                             "Relocate for BPF_PSEUDO_MAP_FD, instruction index: {}, map_fd: {}, ptr: {:#x}",
-                            index, map_fd, map_ptr
+                            index,
+                            map_fd,
+                            map_ptr
                         );
                         raw_file_ptr.push(map_ptr);
                         Some(map_ptr)

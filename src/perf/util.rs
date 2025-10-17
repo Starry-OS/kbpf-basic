@@ -3,7 +3,7 @@ use alloc::string::String;
 use bitflags::bitflags;
 use int_enum::IntEnum;
 
-use crate::{linux_bpf::*, BpfError, KernelAuxiliaryOps, Result};
+use crate::{BpfError, KernelAuxiliaryOps, Result, linux_bpf::*};
 
 bitflags! {
     #[derive(Debug, Clone, Copy)]

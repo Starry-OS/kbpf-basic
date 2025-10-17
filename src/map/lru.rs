@@ -155,8 +155,8 @@ mod tests {
 
     use super::{super::tests::*, LruMap};
     use crate::{
-        map::{lru::PerCpuLruMap, BpfMapCommonOps, BpfMapMeta},
         BpfError,
+        map::{BpfMapCommonOps, BpfMapMeta, lru::PerCpuLruMap},
     };
 
     fn callback(_key: &[u8], _value: &[u8], _ctx: *const u8) -> i32 {

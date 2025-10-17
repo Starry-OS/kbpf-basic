@@ -572,12 +572,16 @@ mod tests {
             Err(BpfError::NotSupported)
         }
 
-        fn transmute_buf(_ptr: *const u8, _size: usize) -> Result<&'static [u8]> {
-            Err(BpfError::NotSupported)
+        fn copy_from_user(src: *const u8, size: usize, dst: &mut [u8]) -> Result<()> {
+            let src = unsafe { core::slice::from_raw_parts(src, size) };
+            dst[..size].copy_from_slice(src);
+            Ok(())
         }
 
-        fn transmute_buf_mut(_ptr: *mut u8, _size: usize) -> Result<&'static mut [u8]> {
-            Err(BpfError::NotSupported)
+        fn copy_to_user(dest: *mut u8, size: usize, src: &[u8]) -> Result<()> {
+            let dest = unsafe { core::slice::from_raw_parts_mut(dest, size) };
+            dest.copy_from_slice(src);
+            Ok(())
         }
 
         fn current_cpu_id() -> u32 {
