@@ -61,7 +61,7 @@ impl PerfProbeArgs {
     ) -> Result<Self> {
         let ty = perf_type_id::try_from(attr.type_).map_err(|_| BpfError::InvalidArgument)?;
         let config = match ty {
-            perf_type_id::PERF_TYPE_TRACEPOINT => PerfProbeConfig::Raw(attr.config as u64),
+            perf_type_id::PERF_TYPE_TRACEPOINT => PerfProbeConfig::Raw(attr.config),
             _ => {
                 let sw_id = perf_sw_ids::try_from(attr.config as u32)
                     .map_err(|_| BpfError::InvalidArgument)?;
@@ -71,8 +71,8 @@ impl PerfProbeArgs {
 
         let name = if ty == perf_type_id::PERF_TYPE_MAX {
             let name_ptr = unsafe { attr.__bindgen_anon_3.config1 } as *const u8;
-            let name = F::string_from_user_cstr(name_ptr)?;
-            name
+
+            F::string_from_user_cstr(name_ptr)?
         } else {
             String::new()
         };

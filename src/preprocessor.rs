@@ -53,19 +53,14 @@ impl EBPFPreProcessor {
                         // todo!(warning: We need release after prog unload)
                         let map_ptr = F::get_unified_map_ptr_from_fd(map_fd as u32)? as usize;
                         log::info!(
-                            "Relocate for BPF_PSEUDO_MAP_FD, instruction index: {}, map_fd: {}, ptr: {:#x}",
-                            index,
-                            map_fd,
-                            map_ptr
+                            "Relocate for BPF_PSEUDO_MAP_FD, instruction index: {index}, map_fd: {map_fd}, ptr: {map_ptr:#x}"
                         );
                         raw_file_ptr.push(map_ptr);
                         Some(map_ptr)
                     }
                     ty => {
                         log::error!(
-                            "relocation for ty: {} not implemented, instruction index: {}",
-                            ty,
-                            index
+                            "relocation for ty: {ty} not implemented, instruction index: {index}"
                         );
                         None
                     }
@@ -93,7 +88,7 @@ impl EBPFPreProcessor {
         }
         Ok(Self {
             new_insn: instructions,
-            raw_file_ptr: raw_file_ptr,
+            raw_file_ptr,
         })
     }
 

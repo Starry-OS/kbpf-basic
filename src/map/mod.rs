@@ -204,7 +204,7 @@ impl UnifiedMap {
 ///
 /// See <https://ebpf-docs.dylanreimerink.nl/linux/syscall/BPF_MAP_CREATE/>
 pub fn bpf_map_create<T: PerCpuVariantsOps + 'static>(map_meta: BpfMapMeta) -> Result<UnifiedMap> {
-    log::info!("The map attr is {:#?}", map_meta);
+    log::info!("The map attr is {map_meta:#?}");
     let map: Box<dyn BpfMapCommonOps> = match map_meta.map_type {
         BpfMapType::BPF_MAP_TYPE_ARRAY => {
             let array_map = array::ArrayMap::new(&map_meta)?;
@@ -305,7 +305,7 @@ impl From<&bpf_attr> for BpfMapGetNextKeyArg {
 ///
 /// See <https://ebpf-docs.dylanreimerink.nl/linux/syscall/BPF_MAP_UPDATE_ELEM/>
 pub fn bpf_map_update_elem<F: KernelAuxiliaryOps>(arg: BpfMapUpdateArg) -> Result<()> {
-    log::info!("<bpf_map_update_elem>: {:#x?}", arg);
+    log::info!("<bpf_map_update_elem>: {arg:#x?}");
     let res = F::get_unified_map_from_fd(arg.map_fd, |unified_map| {
         let meta = unified_map.map_meta();
         let key_size = meta.key_size as usize;
@@ -321,7 +321,7 @@ pub fn bpf_map_update_elem<F: KernelAuxiliaryOps>(arg: BpfMapUpdateArg) -> Resul
 }
 
 pub fn bpf_map_freeze<F: KernelAuxiliaryOps>(map_fd: u32) -> Result<()> {
-    log::info!("<bpf_map_freeze>: map_fd: {:}", map_fd);
+    log::info!("<bpf_map_freeze>: map_fd: {map_fd:}");
     F::get_unified_map_from_fd(map_fd, |unified_map| unified_map.map().freeze())
 }
 

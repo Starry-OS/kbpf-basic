@@ -266,8 +266,8 @@ pub fn map_update_elem(
     flags: u64,
 ) -> Result<()> {
     let map = unified_map.map_mut();
-    let value = map.update_elem(key, value, flags);
-    value
+
+    map.update_elem(key, value, flags)
 }
 
 /// Delete entry with key from map.
@@ -292,8 +292,8 @@ pub unsafe fn raw_map_delete_elem<F: KernelAuxiliaryOps>(
 /// Delete entry with key from map.
 pub fn map_delete_elem(unified_map: &mut UnifiedMap, key: &[u8]) -> Result<()> {
     let map = unified_map.map_mut();
-    let value = map.delete_elem(key);
-    value
+
+    map.delete_elem(key)
 }
 
 /// For each element in map, call callback_fn function with map, callback_ctx and other map-specific
@@ -336,8 +336,8 @@ pub fn map_for_each_elem(
     flags: u64,
 ) -> Result<u32> {
     let map = unified_map.map_mut();
-    let value = map.for_each_elem(cb, ctx, flags);
-    value
+
+    map.for_each_elem(cb, ctx, flags)
 }
 
 /// Perform a lookup in percpu map for an entry associated to key on cpu.
@@ -396,8 +396,8 @@ pub unsafe fn raw_map_push_elem<F: KernelAuxiliaryOps>(
 /// Push an element value in map.
 pub fn map_push_elem(unified_map: &mut UnifiedMap, value: &[u8], flags: u64) -> Result<()> {
     let map = unified_map.map_mut();
-    let value = map.push_elem(value, flags);
-    value
+
+    map.push_elem(value, flags)
 }
 
 /// Pop an element from map.
@@ -419,8 +419,8 @@ pub unsafe fn raw_map_pop_elem<F: KernelAuxiliaryOps>(map: *mut c_void, value: *
 /// Pop an element from map.
 pub fn map_pop_elem(unified_map: &mut UnifiedMap, value: &mut [u8]) -> Result<()> {
     let map = unified_map.map_mut();
-    let value = map.pop_elem(value);
-    value
+
+    map.pop_elem(value)
 }
 
 /// Get an element from map without removing it.
@@ -445,8 +445,8 @@ pub unsafe fn raw_map_peek_elem<F: KernelAuxiliaryOps>(
 /// Get an element from map without removing it.
 pub fn map_peek_elem(unified_map: &mut UnifiedMap, value: &mut [u8]) -> Result<()> {
     let map = unified_map.map_mut();
-    let value = map.peek_elem(value);
-    value
+
+    map.peek_elem(value)
 }
 
 pub fn bpf_ktime_get_ns<F: KernelAuxiliaryOps>() -> u64 {
@@ -488,7 +488,7 @@ unsafe fn raw_probe_read_user_str<F: KernelAuxiliaryOps>(
 pub fn probe_read_user_str<F: KernelAuxiliaryOps>(dst: &mut [u8], src: *const u8) -> Result<usize> {
     // read a NULL terminated string from user space
     let str = F::string_from_user_cstr(src)?;
-    let len = str.as_bytes().len();
+    let len = str.len();
     let copy_len = len.min(dst.len() - 1); // Leave space for NULL terminator
     dst[..copy_len].copy_from_slice(&str.as_bytes()[..copy_len]);
     dst[copy_len] = 0; // Null-terminate the string
