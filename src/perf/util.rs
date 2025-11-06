@@ -33,25 +33,39 @@ pub enum PerfEventIoc {
 #[allow(unused)]
 /// `perf_event_open` syscall arguments.
 pub struct PerfProbeArgs {
+    /// Configuration for the perf probe.
     pub config: PerfProbeConfig,
+    /// Name of the perf probe.
     pub name: String,
+    /// Offset for the perf probe.
     pub offset: u64,
+    /// Size of the perf probe.
     pub size: u32,
+    /// Type of the perf probe.
     pub type_: perf_type_id,
+    /// PID for the perf probe.
     pub pid: i32,
+    /// CPU for the perf probe.
     pub cpu: i32,
+    /// Group file descriptor for the perf probe.
     pub group_fd: i32,
+    /// Flags for the perf probe.
     pub flags: PerfEventOpenFlags,
+    /// Sample type for the perf probe.
     pub sample_type: Option<perf_event_sample_format>,
 }
 
+/// Configuration for the perf probe.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PerfProbeConfig {
+    /// Perf software IDs.
     PerfSwIds(perf_sw_ids),
+    /// Perf raw config.
     Raw(u64),
 }
 
 impl PerfProbeArgs {
+    /// Try to create a `PerfProbeArgs` from a `perf_event_attr` structure.
     pub fn try_from_perf_attr<F: KernelAuxiliaryOps>(
         attr: &perf_event_attr,
         pid: i32,
@@ -61,10 +75,7 @@ impl PerfProbeArgs {
     ) -> Result<Self> {
         let ty = perf_type_id::try_from(attr.type_).map_err(|_| BpfError::InvalidArgument)?;
         let config = match ty {
-            perf_type_id::PERF_TYPE_TRACEPOINT | perf_type_id::PERF_TYPE_MAX => {
-                PerfProbeConfig::Raw(attr.config)
-            }
-
+            perf_type_id::PERF_TYPE_TRACEPOINT => PerfProbeConfig::Raw(attr.config),
             _ => {
                 let sw_id = perf_sw_ids::try_from(attr.config as u32)
                     .map_err(|_| BpfError::InvalidArgument)?;

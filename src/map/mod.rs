@@ -1,17 +1,23 @@
+//! BPF map implementations.
+//!
 mod array;
+mod flags;
 mod hash;
 mod lru;
 mod queue;
+pub(crate) mod stream;
 use alloc::{
     boxed::Box,
     string::{String, ToString},
+    sync::Arc,
     vec,
 };
-use core::{ffi::CStr, fmt::Debug, ops::Range};
+use core::{any::Any, ffi::CStr, fmt::Debug, ops::Range};
 
 use crate::{
-    BpfError, KernelAuxiliaryOps, Result,
+    BpfError, KernelAuxiliaryOps, PollWaker, Result,
     linux_bpf::{BpfMapType, bpf_attr},
+    map::flags::BpfMapCreateFlags,
 };
 
 #[inline]
@@ -20,8 +26,11 @@ fn round_up(x: usize, align: usize) -> usize {
     (x + align - 1) & !(align - 1)
 }
 
+/// Callback function type for iterating over map elements.
 pub type BpfCallBackFn = fn(key: &[u8], value: &[u8], ctx: *const u8) -> i32;
-pub trait BpfMapCommonOps: Send + Sync + Debug {
+
+/// Common operations for BPF maps.
+pub trait BpfMapCommonOps: Send + Sync + Debug + Any {
     /// Lookup an element in the map.
     ///
     /// See <https://ebpf-docs.dylanreimerink.nl/linux/helper-function/bpf_map_lookup_elem/>
@@ -92,10 +101,21 @@ pub trait BpfMapCommonOps: Send + Sync + Debug {
     fn map_values_ptr_range(&self) -> Result<Range<usize>> {
         Err(BpfError::NotSupported)
     }
+
+    /// Get the memory usage of the map.
+    fn map_mem_usage(&self) -> Result<usize>;
+
+    /// Get a reference to the map as `Any`.
+    fn as_any(&self) -> &dyn Any;
+    /// Get a mutable reference to the map as `Any`.
+    fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
-pub trait PerCpuVariantsOps: Sync + Send + Debug {
+/// Operations for per-cpu variants.
+pub trait PerCpuVariantsOps: Sync + Send + Debug + 'static {
+    /// Create a new per-cpu variants instance.
     fn create<T: Clone + Sync + Send + 'static>(value: T) -> Option<Box<dyn PerCpuVariants<T>>>;
+    /// Get the number of CPUs.
     fn num_cpus() -> u32;
 }
 
@@ -135,13 +155,21 @@ bitflags::bitflags! {
         const BPF_F_LOCK = 4;
     }
 }
+
+/// Metadata for a BPF map.
 #[derive(Debug, Clone, Default)]
 pub struct BpfMapMeta {
+    /// The type of the BPF map.
     pub map_type: BpfMapType,
+    /// The size of the key in bytes.
     pub key_size: u32,
+    /// The size of the value in bytes.
     pub value_size: u32,
+    /// The maximum number of entries in the map.
     pub max_entries: u32,
-    pub _map_flags: u32,
+    /// The flags for the BPF map.
+    pub map_flags: BpfMapCreateFlags,
+    /// The name of the BPF map.
     pub _map_name: String,
 }
 
@@ -158,17 +186,21 @@ impl TryFrom<&bpf_attr> for BpfMapMeta {
             .map_err(|_| BpfError::InvalidArgument)?
             .to_string();
         let map_type = BpfMapType::try_from(u.map_type).map_err(|_| BpfError::InvalidArgument)?;
+
+        let map_flags =
+            BpfMapCreateFlags::from_bits(u.map_flags).ok_or(BpfError::InvalidArgument)?;
         Ok(BpfMapMeta {
             map_type,
             key_size: u.key_size,
             value_size: u.value_size,
             max_entries: u.max_entries,
-            _map_flags: u.map_flags,
+            map_flags,
             _map_name: map_name,
         })
     }
 }
 
+/// A unified BPF map that can hold any type of BPF map.
 #[derive(Debug)]
 pub struct UnifiedMap {
     inner_map: Box<dyn BpfMapCommonOps>,
@@ -203,8 +235,11 @@ impl UnifiedMap {
 /// is automatically enabled for the new file descriptor.
 ///
 /// See <https://ebpf-docs.dylanreimerink.nl/linux/syscall/BPF_MAP_CREATE/>
-pub fn bpf_map_create<T: PerCpuVariantsOps + 'static>(map_meta: BpfMapMeta) -> Result<UnifiedMap> {
-    log::info!("The map attr is {map_meta:#?}");
+pub fn bpf_map_create<F: KernelAuxiliaryOps, T: PerCpuVariantsOps + 'static>(
+    map_meta: BpfMapMeta,
+    poll_waker: Option<Arc<dyn PollWaker>>,
+) -> Result<UnifiedMap> {
+    log::info!("The map attr is {:#?}", map_meta);
     let map: Box<dyn BpfMapCommonOps> = match map_meta.map_type {
         BpfMapType::BPF_MAP_TYPE_ARRAY => {
             let array_map = array::ArrayMap::new(&map_meta)?;
@@ -249,6 +284,11 @@ pub fn bpf_map_create<T: PerCpuVariantsOps + 'static>(map_meta: BpfMapMeta) -> R
             let lru_per_cpu_hash_map = lru::PerCpuLruMap::<T>::new(&map_meta)?;
             Box::new(lru_per_cpu_hash_map)
         }
+        BpfMapType::BPF_MAP_TYPE_RINGBUF => {
+            let poll_waker = poll_waker.ok_or(BpfError::InvalidArgument)?;
+            let ringbuf_map = stream::RingBufMap::<F>::new(&map_meta, poll_waker)?;
+            Box::new(ringbuf_map)
+        }
         _ => {
             unimplemented!("bpf map type {:?} not implemented", map_meta.map_type)
         }
@@ -257,11 +297,16 @@ pub fn bpf_map_create<T: PerCpuVariantsOps + 'static>(map_meta: BpfMapMeta) -> R
     Ok(unified_map)
 }
 
+/// Arguments for BPF map update operations.
 #[derive(Debug, Clone, Copy)]
 pub struct BpfMapUpdateArg {
+    /// File descriptor of the BPF map.
     pub map_fd: u32,
+    /// Pointer to the key.
     pub key: u64,
+    /// Pointer to the value.
     pub value: u64,
+    /// Flags for the update operation.
     pub flags: u64,
 }
 
@@ -281,10 +326,14 @@ impl From<&bpf_attr> for BpfMapUpdateArg {
     }
 }
 
+/// Arguments for BPF map get next key operations.
 #[derive(Debug, Clone, Copy)]
 pub struct BpfMapGetNextKeyArg {
+    /// File descriptor of the BPF map.
     pub map_fd: u32,
+    /// Pointer to the key. If None, get the first key.
     pub key: Option<u64>,
+    /// Pointer to store the next key.
     pub next_key: u64,
 }
 
@@ -305,7 +354,7 @@ impl From<&bpf_attr> for BpfMapGetNextKeyArg {
 ///
 /// See <https://ebpf-docs.dylanreimerink.nl/linux/syscall/BPF_MAP_UPDATE_ELEM/>
 pub fn bpf_map_update_elem<F: KernelAuxiliaryOps>(arg: BpfMapUpdateArg) -> Result<()> {
-    log::info!("<bpf_map_update_elem>: {arg:#x?}");
+    log::info!("<bpf_map_update_elem>: {:#x?}", arg);
     let res = F::get_unified_map_from_fd(arg.map_fd, |unified_map| {
         let meta = unified_map.map_meta();
         let key_size = meta.key_size as usize;
@@ -320,8 +369,9 @@ pub fn bpf_map_update_elem<F: KernelAuxiliaryOps>(arg: BpfMapUpdateArg) -> Resul
     res
 }
 
+/// Freeze a map to prevent further modifications.
 pub fn bpf_map_freeze<F: KernelAuxiliaryOps>(map_fd: u32) -> Result<()> {
-    log::info!("<bpf_map_freeze>: map_fd: {map_fd:}");
+    log::info!("<bpf_map_freeze>: map_fd: {:}", map_fd);
     F::get_unified_map_from_fd(map_fd, |unified_map| unified_map.map().freeze())
 }
 

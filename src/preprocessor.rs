@@ -7,6 +7,7 @@ use crate::{
     linux_bpf::{BPF_PSEUDO_MAP_FD, BPF_PSEUDO_MAP_VALUE},
 };
 
+/// eBPF preprocessor for relocating map file descriptors in eBPF instructions.
 pub struct EBPFPreProcessor {
     new_insn: Vec<u8>,
     raw_file_ptr: Vec<usize>,
@@ -53,14 +54,19 @@ impl EBPFPreProcessor {
                         // todo!(warning: We need release after prog unload)
                         let map_ptr = F::get_unified_map_ptr_from_fd(map_fd as u32)? as usize;
                         log::info!(
-                            "Relocate for BPF_PSEUDO_MAP_FD, instruction index: {index}, map_fd: {map_fd}, ptr: {map_ptr:#x}"
+                            "Relocate for BPF_PSEUDO_MAP_FD, instruction index: {}, map_fd: {}, ptr: {:#x}",
+                            index,
+                            map_fd,
+                            map_ptr
                         );
                         raw_file_ptr.push(map_ptr);
                         Some(map_ptr)
                     }
                     ty => {
                         log::error!(
-                            "relocation for ty: {ty} not implemented, instruction index: {index}"
+                            "relocation for ty: {} not implemented, instruction index: {}",
+                            ty,
+                            index
                         );
                         None
                     }
