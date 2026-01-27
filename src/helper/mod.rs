@@ -23,12 +23,12 @@ pub type RawBPFHelperFn = fn(u64, u64, u64, u64, u64) -> u64;
 macro_rules! helper_func {
     ($name:ident::<$($generic:ident),*>) => {
         unsafe {
-            core::mem::transmute::<usize, RawBPFHelperFn>($name::<$($generic),*> as usize)
+            core::mem::transmute::<usize, RawBPFHelperFn>($name::<$($generic),*> as *const () as usize)
         }
     };
     ($name:ident) => {
         unsafe {
-            core::mem::transmute::<usize, RawBPFHelperFn>($name as usize)
+            core::mem::transmute::<usize, RawBPFHelperFn>($name as *const () as usize)
         }
     };
 }
@@ -40,7 +40,7 @@ use printf_compat::{format, output};
 /// # Safety
 /// The caller must ensure that the format string and arguments are valid.
 pub unsafe extern "C" fn printf(w: &mut impl Write, str: *const c_char, mut args: ...) -> c_int {
-    let bytes_written = unsafe { format(str as _, args.as_va_list(), output::fmt_write(w)) };
+    let bytes_written = unsafe { format(str as _, args, output::fmt_write(w)) };
     bytes_written + 1
 }
 
