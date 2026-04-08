@@ -4,9 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-printf-compat = { git = "https://github.com/lights0123/printf-compat", default-features = false, rev = "6a67f5b" }
-bitflags = "2.10"
+printf-compat = "0.3"
+bitflags = "2"
 lru = "0.16.3"
 log = "0.4"
-rbpf = { git = "https://github.com/qmonnet/rbpf.git", default-features = false, rev = "f31e471" }
+rbpf = "0.4"
 int-enum = "1.2"
