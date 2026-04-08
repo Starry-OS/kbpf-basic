@@ -188,7 +188,7 @@ pub fn raw_perf_event_output<F: KernelAuxiliaryOps>(
 
     match res {
         Ok(_) => 0,
-        Err(e) => e.into(),
+        Err(e) => e as _,
     }
 }
 
@@ -209,8 +209,8 @@ pub fn perf_event_output<F: KernelAuxiliaryOps>(
     let map = unified_map.map_mut();
     let fd = map
         .lookup_elem(&key.to_ne_bytes())?
-        .ok_or(BpfError::NotFound)?;
-    let fd = u32::from_ne_bytes(fd.try_into().map_err(|_| BpfError::InvalidArgument)?);
+        .ok_or(BpfError::ENOENT)?;
+    let fd = u32::from_ne_bytes(fd.try_into().map_err(|_| BpfError::EINVAL)?);
     F::perf_event_output(ctx, fd, flags, data)?;
     Ok(())
 }
@@ -231,7 +231,7 @@ fn raw_bpf_probe_read(dst: *mut c_void, size: u32, unsafe_ptr: *const c_void) ->
     let res = bpf_probe_read(dst, src);
     match res {
         Ok(_) => 0,
-        Err(e) => e.into(),
+        Err(e) => e as _,
     }
 }
 
@@ -264,7 +264,7 @@ pub fn raw_map_update_elem<F: KernelAuxiliaryOps>(
     });
     match res {
         Ok(_) => 0,
-        Err(e) => e.into(),
+        Err(e) => e as _,
     }
 }
 
@@ -292,7 +292,7 @@ pub fn raw_map_delete_elem<F: KernelAuxiliaryOps>(map: *mut c_void, key: *const 
     });
     match res {
         Ok(_) => 0,
-        Err(e) => e.into(),
+        Err(e) => e as _,
     }
 }
 
@@ -331,7 +331,7 @@ pub fn raw_map_for_each_elem<F: KernelAuxiliaryOps>(
     });
     match res {
         Ok(v) => v as i64,
-        Err(e) => e.into(),
+        Err(e) => e as _,
     }
 }
 
@@ -396,7 +396,7 @@ pub fn raw_map_push_elem<F: KernelAuxiliaryOps>(
     });
     match res {
         Ok(_) => 0,
-        Err(e) => e.into(),
+        Err(e) => e as _,
     }
 }
 
@@ -419,7 +419,7 @@ pub fn raw_map_pop_elem<F: KernelAuxiliaryOps>(map: *mut c_void, value: *mut c_v
     });
     match res {
         Ok(_) => 0,
-        Err(e) => e.into(),
+        Err(e) => e as _,
     }
 }
 
@@ -442,7 +442,7 @@ pub fn raw_map_peek_elem<F: KernelAuxiliaryOps>(map: *mut c_void, value: *mut c_
     });
     match res {
         Ok(_) => 0,
-        Err(e) => e.into(),
+        Err(e) => e as _,
     }
 }
 
@@ -482,7 +482,7 @@ fn raw_probe_read_user_str<F: KernelAuxiliaryOps>(
     // log::info!("<raw_probe_read_user_str>: res: {:?}", res);
     match res {
         Ok(len) => len as i64,
-        Err(e) => e.into(),
+        Err(e) => e as _,
     }
 }
 

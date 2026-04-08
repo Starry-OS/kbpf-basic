@@ -36,71 +36,71 @@ pub trait BpfMapCommonOps: Send + Sync + Debug + Any {
     ///
     /// See <https://ebpf-docs.dylanreimerink.nl/linux/helper-function/bpf_map_lookup_elem/>
     fn lookup_elem(&mut self, _key: &[u8]) -> Result<Option<&[u8]>> {
-        Err(BpfError::NotSupported)
+        Err(BpfError::EPERM)
     }
     /// Update an element in the map.
     ///
     /// See <https://ebpf-docs.dylanreimerink.nl/linux/helper-function/bpf_map_update_elem/>
     fn update_elem(&mut self, _key: &[u8], _value: &[u8], _flags: u64) -> Result<()> {
-        Err(BpfError::NotSupported)
+        Err(BpfError::EPERM)
     }
     /// Delete an element from the map.
     ///
     /// See <https://ebpf-docs.dylanreimerink.nl/linux/helper-function/bpf_map_delete_elem/>
     fn delete_elem(&mut self, _key: &[u8]) -> Result<()> {
-        Err(BpfError::NotSupported)
+        Err(BpfError::EPERM)
     }
     /// For each element in map, call callback_fn function with map,
     /// callback_ctx and other map-specific parameters.
     ///
     /// See <https://ebpf-docs.dylanreimerink.nl/linux/helper-function/bpf_for_each_map_elem/>
     fn for_each_elem(&mut self, _cb: BpfCallBackFn, _ctx: *const u8, _flags: u64) -> Result<u32> {
-        Err(BpfError::NotSupported)
+        Err(BpfError::EPERM)
     }
     /// Look up an element with the given key in the map referred to by the file descriptor fd,
     /// and if found, delete the element.
     fn lookup_and_delete_elem(&mut self, _key: &[u8], _value: &mut [u8]) -> Result<()> {
-        Err(BpfError::NotSupported)
+        Err(BpfError::EPERM)
     }
 
     /// erform a lookup in percpu map for an entry associated to key on cpu.
     fn lookup_percpu_elem(&mut self, _key: &[u8], _cpu: u32) -> Result<Option<&[u8]>> {
-        Err(BpfError::NotSupported)
+        Err(BpfError::EPERM)
     }
     /// Get the next key in the map. If key is None, get the first key.
     ///
     /// Called from syscall
     fn get_next_key(&self, _key: Option<&[u8]>, _next_key: &mut [u8]) -> Result<()> {
-        Err(BpfError::NotSupported)
+        Err(BpfError::EPERM)
     }
 
     /// Push an element value in map.
     fn push_elem(&mut self, _value: &[u8], _flags: u64) -> Result<()> {
-        Err(BpfError::NotSupported)
+        Err(BpfError::EPERM)
     }
 
     /// Pop an element value from map.
     fn pop_elem(&mut self, _value: &mut [u8]) -> Result<()> {
-        Err(BpfError::NotSupported)
+        Err(BpfError::EPERM)
     }
 
     /// Peek an element value from map.
     fn peek_elem(&self, _value: &mut [u8]) -> Result<()> {
-        Err(BpfError::NotSupported)
+        Err(BpfError::EPERM)
     }
 
     /// Freeze the map.
     ///
     /// It's useful for .rodata maps.
     fn freeze(&self) -> Result<()> {
-        Err(BpfError::NotSupported)
+        Err(BpfError::EPERM)
     }
 
     /// Get the first value pointer.
     ///
     /// This is used for BPF_PSEUDO_MAP_VALUE.
     fn map_values_ptr_range(&self) -> Result<Range<usize>> {
-        Err(BpfError::NotSupported)
+        Err(BpfError::EPERM)
     }
 
     /// Get the memory usage of the map.
@@ -108,7 +108,7 @@ pub trait BpfMapCommonOps: Send + Sync + Debug + Any {
 
     /// Memory map the map into user space. Return the physical address.
     fn map_mmap(&self, offset: usize, size: usize, read: bool, write: bool) -> Result<Vec<usize>> {
-        Err(BpfError::NotSupported)
+        Err(BpfError::EPERM)
     }
 
     /// Whether the map is readable.
@@ -197,14 +197,13 @@ impl TryFrom<&bpf_attr> for BpfMapMeta {
             core::slice::from_raw_parts(u.map_name.as_ptr() as *const u8, u.map_name.len())
         };
         let map_name = CStr::from_bytes_until_nul(map_name_slice)
-            .map_err(|_| BpfError::InvalidArgument)?
+            .map_err(|_| BpfError::EINVAL)?
             .to_str()
-            .map_err(|_| BpfError::InvalidArgument)?
+            .map_err(|_| BpfError::EINVAL)?
             .to_string();
-        let map_type = BpfMapType::try_from(u.map_type).map_err(|_| BpfError::InvalidArgument)?;
+        let map_type = BpfMapType::try_from(u.map_type).map_err(|_| BpfError::EINVAL)?;
 
-        let map_flags =
-            BpfMapCreateFlags::from_bits(u.map_flags).ok_or(BpfError::InvalidArgument)?;
+        let map_flags = BpfMapCreateFlags::from_bits(u.map_flags).ok_or(BpfError::EINVAL)?;
         Ok(BpfMapMeta {
             map_type,
             key_size: u.key_size,
@@ -274,7 +273,7 @@ pub fn bpf_map_create<F: KernelAuxiliaryOps, T: PerCpuVariantsOps + 'static>(
         | BpfMapType::BPF_MAP_TYPE_DEVMAP
         | BpfMapType::BPF_MAP_TYPE_DEVMAP_HASH => {
             log::error!("bpf map type {:?} not implemented", map_meta.map_type);
-            Err(BpfError::NotSupported)?
+            Err(BpfError::EPERM)?
         }
         BpfMapType::BPF_MAP_TYPE_HASH => {
             let hash_map = hash::BpfHashMap::new(&map_meta)?;
@@ -301,7 +300,7 @@ pub fn bpf_map_create<F: KernelAuxiliaryOps, T: PerCpuVariantsOps + 'static>(
             Box::new(lru_per_cpu_hash_map)
         }
         BpfMapType::BPF_MAP_TYPE_RINGBUF => {
-            let poll_waker = poll_waker.ok_or(BpfError::InvalidArgument)?;
+            let poll_waker = poll_waker.ok_or(BpfError::EINVAL)?;
             log::warn!("The ringbuf map attr is {:#?}", map_meta);
             let ringbuf_map = stream::RingBufMap::<F>::new(&map_meta, poll_waker)?;
             Box::new(ringbuf_map)
@@ -409,7 +408,7 @@ pub fn bpf_lookup_elem<F: KernelAuxiliaryOps>(arg: BpfMapUpdateArg) -> Result<()
             F::copy_to_user(arg.value as *mut u8, value_size, r_value)?;
             Ok(())
         } else {
-            Err(BpfError::NotFound)
+            Err(BpfError::ENOENT)
         }
     })
 }

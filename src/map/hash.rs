@@ -24,7 +24,7 @@ impl BpfHashMap {
     /// Create a new [BpfHashMap] with the given key size, value size, and maximum number of entries.
     pub fn new(map_meta: &BpfMapMeta) -> Result<Self> {
         if map_meta.value_size == 0 || map_meta.max_entries == 0 {
-            return Err(BpfError::InvalidArgument);
+            return Err(BpfError::EINVAL);
         }
         let value_size = round_up(map_meta.value_size as usize, 8);
         Ok(Self {
@@ -55,7 +55,7 @@ impl BpfMapCommonOps for BpfHashMap {
 
     fn for_each_elem(&mut self, cb: BpfCallBackFn, ctx: *const u8, flags: u64) -> Result<u32> {
         if flags != 0 {
-            return Err(BpfError::InvalidArgument);
+            return Err(BpfError::EINVAL);
         }
         let mut total_used = 0;
         for (key, value) in self.data.iter() {
@@ -74,7 +74,7 @@ impl BpfMapCommonOps for BpfHashMap {
             .data
             .get(key)
             .map(|v| v.as_slice())
-            .ok_or(BpfError::NotSupported)?;
+            .ok_or(BpfError::ENOENT)?;
         value.copy_from_slice(v);
         self.data.remove(key);
         Ok(())
@@ -95,7 +95,7 @@ impl BpfMapCommonOps for BpfHashMap {
                 next_key.copy_from_slice(k.as_slice());
                 Ok(())
             }
-            None => Err(BpfError::NotFound),
+            None => Err(BpfError::ENOENT),
         }
     }
 
@@ -129,7 +129,7 @@ impl<T: PerCpuVariantsOps> PerCpuHashMap<T> {
     /// Create a new [PerCpuHashMap] with the given key size, value size, and maximum number of entries.
     pub fn new(map_meta: &BpfMapMeta) -> Result<Self> {
         let array_map = BpfHashMap::new(map_meta)?;
-        let per_cpu_maps = T::create(array_map).ok_or(BpfError::InvalidArgument)?;
+        let per_cpu_maps = T::create(array_map).ok_or(BpfError::EINVAL)?;
         Ok(PerCpuHashMap {
             per_cpu_maps,
             _marker: core::marker::PhantomData,

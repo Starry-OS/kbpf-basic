@@ -43,7 +43,7 @@ pub struct QueueMap {
 impl QueueMap {
     pub fn new(map_meta: &BpfMapMeta) -> Result<Self> {
         if map_meta.value_size == 0 || map_meta.max_entries == 0 || map_meta.key_size != 0 {
-            return Err(BpfError::InvalidArgument);
+            return Err(BpfError::EINVAL);
         }
         let data = Vec::with_capacity(map_meta.max_entries as usize);
         Ok(Self {
@@ -60,7 +60,7 @@ impl SpecialMap for QueueMap {
                 // remove the first element
                 self.data.remove(0);
             } else {
-                return Err(BpfError::NoSpace);
+                return Err(BpfError::ENOMEM);
             }
         }
         self.data.push(value);
@@ -106,7 +106,7 @@ impl SpecialMap for StackMap {
                 // remove the last element
                 self.0.data.pop();
             } else {
-                return Err(BpfError::NoSpace);
+                return Err(BpfError::ENOMEM);
             }
         }
         self.0.data.push(value);
@@ -144,7 +144,7 @@ impl<T: SpecialMap> BpfMapCommonOps for T {
             value.copy_from_slice(&v);
             Ok(())
         } else {
-            Err(BpfError::NotFound)
+            Err(BpfError::ENOENT)
         }
     }
 
@@ -159,7 +159,7 @@ impl<T: SpecialMap> BpfMapCommonOps for T {
     fn peek_elem(&self, value: &mut [u8]) -> Result<()> {
         self.peek()
             .map(|v| value.copy_from_slice(v))
-            .ok_or(BpfError::NotFound)
+            .ok_or(BpfError::ENOENT)
     }
 
     fn map_mem_usage(&self) -> Result<usize> {

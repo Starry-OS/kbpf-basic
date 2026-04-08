@@ -50,7 +50,7 @@ impl ArrayMap {
     /// Create a new [ArrayMap] with the given key size, value size, and maximum number of entries.
     pub fn new(map_meta: &BpfMapMeta) -> Result<Self> {
         if map_meta.value_size == 0 || map_meta.max_entries == 0 || map_meta.key_size != 4 {
-            return Err(BpfError::InvalidArgument);
+            return Err(BpfError::EINVAL);
         }
         let elem_size = round_up(map_meta.value_size as usize, 8);
         let data = ArrayMapData::new(elem_size as u32, map_meta.max_entries);
@@ -64,11 +64,11 @@ impl ArrayMap {
 impl BpfMapCommonOps for ArrayMap {
     fn lookup_elem(&mut self, key: &[u8]) -> Result<Option<&[u8]>> {
         if key.len() != 4 {
-            return Err(BpfError::InvalidArgument);
+            return Err(BpfError::EINVAL);
         }
-        let index = u32::from_ne_bytes(key.try_into().map_err(|_| BpfError::InvalidArgument)?);
+        let index = u32::from_ne_bytes(key.try_into().map_err(|_| BpfError::EINVAL)?);
         if index >= self.max_entries {
-            return Err(BpfError::InvalidArgument);
+            return Err(BpfError::EINVAL);
         }
         let val = self.data.index(index);
         Ok(Some(val))
@@ -76,14 +76,14 @@ impl BpfMapCommonOps for ArrayMap {
 
     fn update_elem(&mut self, key: &[u8], value: &[u8], _flags: u64) -> Result<()> {
         if key.len() != 4 {
-            return Err(BpfError::InvalidArgument);
+            return Err(BpfError::EINVAL);
         }
-        let index = u32::from_ne_bytes(key.try_into().map_err(|_| BpfError::InvalidArgument)?);
+        let index = u32::from_ne_bytes(key.try_into().map_err(|_| BpfError::EINVAL)?);
         if index >= self.max_entries {
-            return Err(BpfError::InvalidArgument);
+            return Err(BpfError::EINVAL);
         }
         if value.len() > self.data.elem_size as usize {
-            return Err(BpfError::InvalidArgument);
+            return Err(BpfError::EINVAL);
         }
         let old_value = self.data.index_mut(index);
         old_value[..value.len()].copy_from_slice(value);
@@ -92,7 +92,7 @@ impl BpfMapCommonOps for ArrayMap {
 
     fn for_each_elem(&mut self, cb: BpfCallBackFn, ctx: *const u8, flags: u64) -> Result<u32> {
         if flags != 0 {
-            return Err(BpfError::InvalidArgument);
+            return Err(BpfError::EINVAL);
         }
         let mut total_used = 0;
         for i in 0..self.max_entries {
@@ -111,11 +111,11 @@ impl BpfMapCommonOps for ArrayMap {
     fn get_next_key(&self, key: Option<&[u8]>, next_key: &mut [u8]) -> Result<()> {
         if let Some(key) = key {
             if key.len() != 4 {
-                return Err(BpfError::InvalidArgument);
+                return Err(BpfError::EINVAL);
             }
-            let index = u32::from_ne_bytes(key.try_into().map_err(|_| BpfError::InvalidArgument)?);
+            let index = u32::from_ne_bytes(key.try_into().map_err(|_| BpfError::EINVAL)?);
             if index == self.max_entries - 1 {
-                return Err(BpfError::NotFound);
+                return Err(BpfError::ENOENT);
             }
             let next_index = index + 1;
             next_key.copy_from_slice(&next_index.to_ne_bytes());
@@ -160,7 +160,7 @@ impl<T: PerCpuVariantsOps> PerCpuArrayMap<T> {
     /// Create a new [PerCpuArrayMap] with the given key size, value size, and maximum number of entries.
     pub fn new(map_meta: &BpfMapMeta) -> Result<Self> {
         let array_map = ArrayMap::new(map_meta)?;
-        let per_cpu_data = T::create(array_map).ok_or(BpfError::InvalidArgument)?;
+        let per_cpu_data = T::create(array_map).ok_or(BpfError::EINVAL)?;
         Ok(PerCpuArrayMap {
             per_cpu_data,
             _marker: core::marker::PhantomData,
@@ -186,7 +186,7 @@ impl<T: PerCpuVariantsOps> BpfMapCommonOps for PerCpuArrayMap<T> {
     }
 
     fn lookup_and_delete_elem(&mut self, _key: &[u8], _value: &mut [u8]) -> Result<()> {
-        Err(BpfError::InvalidArgument)
+        Err(BpfError::EINVAL)
     }
 
     fn lookup_percpu_elem(&mut self, key: &[u8], cpu: u32) -> Result<Option<&[u8]>> {
@@ -228,7 +228,7 @@ impl PerfEventArrayMap {
     /// Create a new [PerfEventArrayMap] with the given key size, value size, and maximum number of entries.
     pub fn new(map_meta: &BpfMapMeta, num_cpus: u32) -> Result<Self> {
         if map_meta.key_size != 4 || map_meta.value_size != 4 || map_meta.max_entries != num_cpus {
-            return Err(BpfError::InvalidArgument);
+            return Err(BpfError::EINVAL);
         }
         let fds = ArrayMapData::new(4, num_cpus);
         Ok(PerfEventArrayMap { fds, num_cpus })
@@ -237,21 +237,21 @@ impl PerfEventArrayMap {
 
 impl BpfMapCommonOps for PerfEventArrayMap {
     fn lookup_elem(&mut self, key: &[u8]) -> Result<Option<&[u8]>> {
-        let cpu_id = u32::from_ne_bytes(key.try_into().map_err(|_| BpfError::InvalidArgument)?);
+        let cpu_id = u32::from_ne_bytes(key.try_into().map_err(|_| BpfError::EINVAL)?);
         let value = self.fds.index(cpu_id);
         Ok(Some(value))
     }
 
     fn update_elem(&mut self, key: &[u8], value: &[u8], _flags: u64) -> Result<()> {
         assert_eq!(value.len(), 4);
-        let cpu_id = u32::from_ne_bytes(key.try_into().map_err(|_| BpfError::InvalidArgument)?);
+        let cpu_id = u32::from_ne_bytes(key.try_into().map_err(|_| BpfError::EINVAL)?);
         let old_value = self.fds.index_mut(cpu_id);
         old_value.copy_from_slice(value);
         Ok(())
     }
 
     fn delete_elem(&mut self, key: &[u8]) -> Result<()> {
-        let cpu_id = u32::from_ne_bytes(key.try_into().map_err(|_| BpfError::InvalidArgument)?);
+        let cpu_id = u32::from_ne_bytes(key.try_into().map_err(|_| BpfError::EINVAL)?);
         self.fds.index_mut(cpu_id).copy_from_slice(&[0; 4]);
         Ok(())
     }
@@ -271,7 +271,7 @@ impl BpfMapCommonOps for PerfEventArrayMap {
     }
 
     fn lookup_and_delete_elem(&mut self, _key: &[u8], _value: &mut [u8]) -> Result<()> {
-        Err(BpfError::NotSupported)
+        Err(BpfError::EPERM)
     }
 
     fn map_values_ptr_range(&self) -> Result<Range<usize>> {
