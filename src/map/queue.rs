@@ -21,6 +21,8 @@ pub trait SpecialMap: Debug + Send + Sync + 'static {
     fn pop(&mut self) -> Option<BpfQueueValue>;
     /// Returns the first element without removing it.
     fn peek(&self) -> Option<&BpfQueueValue>;
+    /// Returns the fixed value size of each entry.
+    fn value_size(&self) -> usize;
     /// Get the memory usage of the map.
     fn mem_usage(&self) -> Result<usize>;
 }
@@ -37,6 +39,7 @@ pub trait SpecialMap: Debug + Send + Sync + 'static {
 #[derive(Debug)]
 pub struct QueueMap {
     max_entries: u32,
+    value_size: u32,
     data: Vec<BpfQueueValue>,
 }
 
@@ -48,6 +51,7 @@ impl QueueMap {
         let data = Vec::with_capacity(map_meta.max_entries as usize);
         Ok(Self {
             max_entries: map_meta.max_entries,
+            value_size: map_meta.value_size,
             data,
         })
     }
@@ -55,13 +59,11 @@ impl QueueMap {
 
 impl SpecialMap for QueueMap {
     fn push(&mut self, value: BpfQueueValue, flags: BpfMapUpdateElemFlags) -> Result<()> {
+        if flags != BpfMapUpdateElemFlags::empty() {
+            return Err(BpfError::EINVAL);
+        }
         if self.data.len() == self.max_entries as usize {
-            if flags.contains(BpfMapUpdateElemFlags::BPF_EXIST) {
-                // remove the first element
-                self.data.remove(0);
-            } else {
-                return Err(BpfError::ENOMEM);
-            }
+            self.data.remove(0);
         }
         self.data.push(value);
         Ok(())
@@ -76,6 +78,10 @@ impl SpecialMap for QueueMap {
 
     fn peek(&self) -> Option<&BpfQueueValue> {
         self.data.first()
+    }
+
+    fn value_size(&self) -> usize {
+        self.value_size as usize
     }
 
     fn mem_usage(&self) -> Result<usize> {
@@ -102,7 +108,7 @@ impl StackMap {
 impl SpecialMap for StackMap {
     fn push(&mut self, value: BpfQueueValue, flags: BpfMapUpdateElemFlags) -> Result<()> {
         if self.0.data.len() == self.0.max_entries as usize {
-            if flags.contains(BpfMapUpdateElemFlags::BPF_EXIST) {
+            if flags.contains(BpfMapUpdateElemFlags::BPF_EXISTS) {
                 // remove the last element
                 self.0.data.pop();
             } else {
@@ -121,6 +127,10 @@ impl SpecialMap for StackMap {
         self.0.data.last()
     }
 
+    fn value_size(&self) -> usize {
+        self.0.value_size()
+    }
+
     fn mem_usage(&self) -> Result<usize> {
         self.0.mem_usage()
     }
@@ -128,18 +138,33 @@ impl SpecialMap for StackMap {
 
 impl<T: SpecialMap> BpfMapCommonOps for T {
     /// Equal to QueueMap::peek
-    fn lookup_elem(&mut self, _key: &[u8]) -> Result<Option<&[u8]>> {
+    fn lookup_elem(&mut self, key: &[u8]) -> Result<Option<&[u8]>> {
+        if !key.is_empty() {
+            return Err(BpfError::EINVAL);
+        }
         Ok(self.peek().map(|v| v.as_slice()))
     }
 
     /// Equal to QueueMap::push
-    fn update_elem(&mut self, _key: &[u8], value: &[u8], flags: u64) -> Result<()> {
-        let flag = BpfMapUpdateElemFlags::from_bits_truncate(flags);
+    fn update_elem(&mut self, key: &[u8], value: &[u8], flags: u64) -> Result<()> {
+        if !key.is_empty() || value.len() != self.value_size() {
+            return Err(BpfError::EINVAL);
+        }
+        let flag = BpfMapUpdateElemFlags::from_bits(flags).ok_or(BpfError::EINVAL)?;
+        if flag.contains(BpfMapUpdateElemFlags::BPF_F_LOCK)
+            || (flag.contains(BpfMapUpdateElemFlags::BPF_NOEXIST)
+                && flag.contains(BpfMapUpdateElemFlags::BPF_EXISTS))
+        {
+            return Err(BpfError::EINVAL);
+        }
         self.push(value.to_vec(), flag)
     }
 
     /// Equal to QueueMap::pop
-    fn lookup_and_delete_elem(&mut self, _key: &[u8], value: &mut [u8]) -> Result<()> {
+    fn lookup_and_delete_elem(&mut self, key: &[u8], value: &mut [u8]) -> Result<()> {
+        if !key.is_empty() || value.len() != self.value_size() {
+            return Err(BpfError::EINVAL);
+        }
         if let Some(v) = self.pop() {
             value.copy_from_slice(&v);
             Ok(())
@@ -157,6 +182,9 @@ impl<T: SpecialMap> BpfMapCommonOps for T {
     }
 
     fn peek_elem(&self, value: &mut [u8]) -> Result<()> {
+        if value.len() != self.value_size() {
+            return Err(BpfError::EINVAL);
+        }
         self.peek()
             .map(|v| value.copy_from_slice(v))
             .ok_or(BpfError::ENOENT)
@@ -172,5 +200,32 @@ impl<T: SpecialMap> BpfMapCommonOps for T {
 
     fn as_any_mut(&mut self) -> &mut dyn core::any::Any {
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::QueueMap;
+    use crate::{
+        BpfError,
+        map::{BpfMapCommonOps, BpfMapMeta},
+    };
+
+    #[test]
+    fn test_queue_validation() {
+        let mut meta = BpfMapMeta::default();
+        meta.key_size = 0;
+        meta.value_size = 4;
+        meta.max_entries = 2;
+
+        let mut queue = QueueMap::new(&meta).unwrap();
+
+        assert_eq!(queue.update_elem(b"x", b"abcd", 0), Err(BpfError::EINVAL));
+        assert_eq!(queue.update_elem(&[], b"abc", 0), Err(BpfError::EINVAL));
+        assert_eq!(queue.update_elem(&[], b"abcd", 8), Err(BpfError::EINVAL));
+        assert_eq!(queue.update_elem(&[], b"abcd", 0), Ok(()));
+
+        let mut value = [0; 3];
+        assert_eq!(queue.peek_elem(&mut value), Err(BpfError::EINVAL));
     }
 }

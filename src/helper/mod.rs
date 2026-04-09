@@ -314,6 +314,9 @@ pub fn raw_map_for_each_elem<F: KernelAuxiliaryOps>(
     ctx: *const c_void,
     flags: u64,
 ) -> i64 {
+    if cb.is_null() {
+        return BpfError::EINVAL as _;
+    }
     let res = F::get_unified_map_from_ptr(map as *const u8, |unified_map| {
         let cb = unsafe { *(cb as *const BpfCallBackFn) };
         map_for_each_elem(unified_map, cb, ctx as _, flags)
@@ -470,7 +473,9 @@ fn raw_probe_read_user_str<F: KernelAuxiliaryOps>(
 
 /// Copy a NULL terminated string from an unsafe user address unsafe_ptr to dst.
 pub fn probe_read_user_str<F: KernelAuxiliaryOps>(dst: &mut [u8], src: *const u8) -> Result<usize> {
-    // read a NULL terminated string from user space
+    if dst.is_empty() {
+        return Err(BpfError::EINVAL);
+    }
     let str = F::string_from_user_cstr(src)?;
     let len = str.len();
     let copy_len = len.min(dst.len() - 1); // Leave space for NULL terminator

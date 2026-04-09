@@ -160,14 +160,15 @@ pub trait PerCpuVariants<T: Clone + Sync + Send>: Sync + Send + Debug {
 
 bitflags::bitflags! {
     /// flags for BPF_MAP_UPDATE_ELEM command
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct BpfMapUpdateElemFlags: u64 {
-        /// create new element or update existing
+        /// This flag has a value of 0, so setting it together with another flag has no impact. It is meant to be used if no other flags are specified to explicitly state that the command should update the map regardless of if the key already exists or not.
         const BPF_ANY = 0;
-        /// create new element if it didn't exist
+        /// If this flag is set, the command will make sure that the given key doesn't exist yet. If the same key already exists when this command is executed the -EEXIST error number will be returned.
         const BPF_NOEXIST = 1;
-        /// update existing element
-        const BPF_EXIST = 2;
-        /// spin_lock-ed map_lookup/map_update
+        /// If this flag is set, the command will make sure that the given key already exists. If no entry for this key exists, the -ENOENT error number will be returned
+        const BPF_EXISTS = 2;
+        /// If this flag is set, the command will acquire the spin-lock of the map value we are updating. If the map contains no spin-lock in its value, -EINVAL will be returned by the command.
         const BPF_F_LOCK = 4;
     }
 }
@@ -305,7 +306,8 @@ pub fn bpf_map_create<F: KernelAuxiliaryOps, T: PerCpuVariantsOps + 'static>(
             Box::new(ringbuf_map)
         }
         _ => {
-            unimplemented!("bpf map type {:?} not implemented", map_meta.map_type)
+            log::error!("bpf map type {:?} not implemented", map_meta.map_type);
+            Err(BpfError::EPERM)?
         }
     };
     let unified_map = UnifiedMap::new(map_meta, map);
@@ -369,7 +371,6 @@ impl From<&bpf_attr> for BpfMapGetNextKeyArg {
 ///
 /// See <https://ebpf-docs.dylanreimerink.nl/linux/syscall/BPF_MAP_UPDATE_ELEM/>
 pub fn bpf_map_update_elem<F: KernelAuxiliaryOps>(arg: BpfMapUpdateArg) -> Result<()> {
-    
     F::get_unified_map_from_fd(arg.map_fd, |unified_map| {
         let meta = unified_map.map_meta();
         let key_size = meta.key_size as usize;
@@ -457,7 +458,8 @@ pub fn bpf_map_delete_elem<F: KernelAuxiliaryOps>(arg: BpfMapUpdateArg) -> Resul
 ///
 /// See <https://ebpf-docs.dylanreimerink.nl/linux/syscall/BPF_MAP_LOOKUP_BATCH/>
 pub fn bpf_map_lookup_batch<F: KernelAuxiliaryOps>(_arg: BpfMapUpdateArg) -> Result<usize> {
-    todo!()
+    // TODO: implement bpf_map_lookup_batch
+    Err(BpfError::EPERM)
 }
 
 /// Look up an element with the given key in the map referred to by the file descriptor fd,
