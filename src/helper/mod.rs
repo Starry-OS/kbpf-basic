@@ -116,7 +116,6 @@ pub fn trace_printf<F: KernelAuxiliaryOps>(
         ))
     };
     let fmt_arg_count = extract_format_specifiers(fmt_str);
-    // log::info!("trace_printf: fmt_arg_count: {}", fmt_arg_count);
 
     let (arg3, arg4, arg5) = match fmt_arg_count {
         0 => (0, 0, 0),
@@ -151,7 +150,6 @@ pub fn raw_map_lookup_elem<F: KernelAuxiliaryOps>(
         let key_size = meta.key_size as usize;
         let key = unsafe { core::slice::from_raw_parts(key as *const u8, key_size) };
         let value = map_lookup_elem(unified_map, key)?;
-        // log::info!("<raw_map_lookup_elem>: {:x?}", value);
         Ok(value)
     });
     match res {
@@ -180,7 +178,6 @@ pub fn raw_perf_event_output<F: KernelAuxiliaryOps>(
     data: *mut c_void,
     size: u64,
 ) -> i64 {
-    // log::info!("<raw_perf_event_output>: {:x?}", data);
     let res = F::get_unified_map_from_ptr(map as *const u8, |unified_map| {
         let data = unsafe { core::slice::from_raw_parts(data as *const u8, size as usize) };
         perf_event_output::<F>(ctx, unified_map, flags, data)
@@ -217,12 +214,6 @@ pub fn perf_event_output<F: KernelAuxiliaryOps>(
 
 /// See https://ebpf-docs.dylanreimerink.nl/linux/helper-function/bpf_probe_read/
 fn raw_bpf_probe_read(dst: *mut c_void, size: u32, unsafe_ptr: *const c_void) -> i64 {
-    // log::info!(
-    //     "raw_bpf_probe_read, dst:{:x}, size:{}, unsafe_ptr: {:x}",
-    //     dst as usize,
-    //     size,
-    //     unsafe_ptr as usize
-    // );
     let (dst, src) = unsafe {
         let dst = core::slice::from_raw_parts_mut(dst as *mut u8, size as usize);
         let src = core::slice::from_raw_parts(unsafe_ptr as *const u8, size as usize);
@@ -239,7 +230,6 @@ fn raw_bpf_probe_read(dst: *mut c_void, size: u32, unsafe_ptr: *const c_void) ->
 /// bytes from kernel space address unsafe_ptr and
 /// store the data in dst.
 pub fn bpf_probe_read(dst: &mut [u8], src: &[u8]) -> Result<()> {
-    // log::info!("bpf_probe_read: len: {}", dst.len());
     dst.copy_from_slice(src);
     Ok(())
 }
@@ -257,7 +247,6 @@ pub fn raw_map_update_elem<F: KernelAuxiliaryOps>(
         let meta = unified_map.map_meta();
         let key_size = meta.key_size as usize;
         let value_size = meta.value_size as usize;
-        // log::info!("<raw_map_update_elem>: flags: {:x?}", flags);
         let key = unsafe { core::slice::from_raw_parts(key as *const u8, key_size) };
         let value = unsafe { core::slice::from_raw_parts(value as *const u8, value_size) };
         map_update_elem(unified_map, key, value, flags)
@@ -471,15 +460,8 @@ fn raw_probe_read_user_str<F: KernelAuxiliaryOps>(
     size: u32,
     unsafe_ptr: *const c_void,
 ) -> i64 {
-    // log::info!(
-    //     "<raw_probe_read_user_str>: dst:{:x}, size:{}, unsafe_ptr: {:x}",
-    //     dst as usize,
-    //     size,
-    //     unsafe_ptr as usize
-    // );
     let dst = unsafe { core::slice::from_raw_parts_mut(dst as *mut u8, size as usize) };
     let res = probe_read_user_str::<F>(dst, unsafe_ptr as *const u8);
-    // log::info!("<raw_probe_read_user_str>: res: {:?}", res);
     match res {
         Ok(len) => len as i64,
         Err(e) => e as _,

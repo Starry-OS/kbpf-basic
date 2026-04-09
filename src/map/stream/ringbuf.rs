@@ -151,7 +151,7 @@ impl<F: KernelAuxiliaryOps> RingBuf<F> {
         let mut pages = Vec::with_capacity(nr_pages);
         let mut phys_addrs = vec![0usize; nr_meta_pages + 2 * nr_data_pages];
 
-        log::debug!(
+        log::trace!(
             "Creating ringbuf with {} pages ({} meta pages, {} data pages)",
             nr_pages,
             nr_meta_pages,

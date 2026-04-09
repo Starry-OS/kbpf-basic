@@ -39,7 +39,6 @@ pub fn raw_bpf_ringbuf_output<F: KernelAuxiliaryOps>(
     flags: u64,
 ) -> i64 {
     let res = F::get_unified_map_from_ptr(map as *const u8, |unified_map| {
-        // log::info!("<raw_bpf_ringbuf_output>: flags: {:x?}", flags);
         let data = unsafe { core::slice::from_raw_parts(data, size as usize) };
         bpf_ringbuf_output::<F>(unified_map, data, flags)
     });
@@ -82,7 +81,6 @@ pub fn raw_bpf_ringbuf_reserve<F: KernelAuxiliaryOps>(
         return core::ptr::null_mut();
     }
     let res = F::get_unified_map_from_ptr(map as *const u8, |unified_map| {
-        // log::info!("<raw_bpf_ringbuf_reserve>: {size:x?}");
         bpf_ringbuf_reserve::<F>(unified_map, size)
     });
     match res {

@@ -254,7 +254,7 @@ pub fn bpf_map_create<F: KernelAuxiliaryOps, T: PerCpuVariantsOps + 'static>(
     map_meta: BpfMapMeta,
     poll_waker: Option<Arc<dyn PollWaker>>,
 ) -> Result<UnifiedMap> {
-    log::info!("The map attr is {:#?}", map_meta);
+    log::trace!("The map attr is {:#?}", map_meta);
     let map: Box<dyn BpfMapCommonOps> = match map_meta.map_type {
         BpfMapType::BPF_MAP_TYPE_ARRAY => {
             let array_map = array::ArrayMap::new(&map_meta)?;
@@ -301,7 +301,6 @@ pub fn bpf_map_create<F: KernelAuxiliaryOps, T: PerCpuVariantsOps + 'static>(
         }
         BpfMapType::BPF_MAP_TYPE_RINGBUF => {
             let poll_waker = poll_waker.ok_or(BpfError::EINVAL)?;
-            log::warn!("The ringbuf map attr is {:#?}", map_meta);
             let ringbuf_map = stream::RingBufMap::<F>::new(&map_meta, poll_waker)?;
             Box::new(ringbuf_map)
         }
@@ -370,8 +369,8 @@ impl From<&bpf_attr> for BpfMapGetNextKeyArg {
 ///
 /// See <https://ebpf-docs.dylanreimerink.nl/linux/syscall/BPF_MAP_UPDATE_ELEM/>
 pub fn bpf_map_update_elem<F: KernelAuxiliaryOps>(arg: BpfMapUpdateArg) -> Result<()> {
-    log::info!("<bpf_map_update_elem>: {:#x?}", arg);
-    let res = F::get_unified_map_from_fd(arg.map_fd, |unified_map| {
+    
+    F::get_unified_map_from_fd(arg.map_fd, |unified_map| {
         let meta = unified_map.map_meta();
         let key_size = meta.key_size as usize;
         let value_size = meta.value_size as usize;
@@ -380,14 +379,11 @@ pub fn bpf_map_update_elem<F: KernelAuxiliaryOps>(arg: BpfMapUpdateArg) -> Resul
         F::copy_from_user(arg.key as *const u8, key_size, &mut key)?;
         F::copy_from_user(arg.value as *const u8, value_size, &mut value)?;
         unified_map.map_mut().update_elem(&key, &value, arg.flags)
-    });
-    log::info!("bpf_map_update_elem ok");
-    res
+    })
 }
 
 /// Freeze a map to prevent further modifications.
 pub fn bpf_map_freeze<F: KernelAuxiliaryOps>(map_fd: u32) -> Result<()> {
-    log::info!("<bpf_map_freeze>: map_fd: {:}", map_fd);
     F::get_unified_map_from_fd(map_fd, |unified_map| unified_map.map().freeze())
 }
 
