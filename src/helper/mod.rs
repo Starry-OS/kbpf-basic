@@ -1,7 +1,7 @@
 //! Basic eBPF helper functions module.
 //!
 pub(crate) mod ringbuf;
-use alloc::{collections::btree_map::BTreeMap, fmt, string::String, vec::Vec};
+use alloc::{collections::btree_map::BTreeMap, string::String, vec::Vec};
 use core::{
     ffi::{c_char, c_int, c_void},
     fmt::Write,
@@ -39,7 +39,7 @@ use printf_compat::{format, output};
 ///
 /// # Safety
 /// The caller must ensure that the format string and arguments are valid.
-pub unsafe extern "C" fn printf(w: &mut impl Write, str: *const c_char, mut args: ...) -> c_int {
+pub unsafe extern "C" fn printf(w: &mut impl Write, str: *const c_char, args: ...) -> c_int {
     let bytes_written = unsafe { format(str as _, args, output::fmt_write(w)) };
     bytes_written + 1
 }
@@ -67,7 +67,7 @@ fn extract_format_specifiers(format_str: &str) -> usize {
                 // Parse type specifier (a single letter)
                 if i < chars.len() && "cdieEfFgGosuxXpn".contains(chars[i]) {
                     i += 1;
-                    let spec: String = chars[start..i].iter().collect();
+                    let _spec: String = chars[start..i].iter().collect();
                     // result.push(spec);
                     fmt_arg_count += 1; // Count this format specifier
                 }
@@ -488,86 +488,86 @@ pub fn probe_read_user_str<F: KernelAuxiliaryOps>(dst: &mut [u8], src: *const u8
 pub fn init_helper_functions<F: KernelAuxiliaryOps>() -> BTreeMap<u32, RawBPFHelperFn> {
     use consts::*;
     let mut map = BTreeMap::new();
-    unsafe {
-        // Map helpers::Generic map helpers
-        map.insert(
-            HELPER_MAP_LOOKUP_ELEM,
-            helper_func!(raw_map_lookup_elem::<F>),
-        );
-        map.insert(
-            HELPER_MAP_UPDATE_ELEM,
-            helper_func!(raw_map_update_elem::<F>),
-        );
-        map.insert(
-            HELPER_MAP_DELETE_ELEM,
-            helper_func!(raw_map_delete_elem::<F>),
-        );
-        map.insert(HELPER_KTIME_GET_NS, helper_func!(bpf_ktime_get_ns::<F>));
-        map.insert(
-            HELPER_MAP_FOR_EACH_ELEM,
-            helper_func!(raw_map_for_each_elem::<F>),
-        );
-        map.insert(
-            HELPER_MAP_LOOKUP_PERCPU_ELEM,
-            helper_func!(raw_map_lookup_percpu_elem::<F>),
-        );
-        // map.insert(93,define_func!(raw_bpf_spin_lock);
-        // map.insert(94,define_func!(raw_bpf_spin_unlock);
-        // Map helpers::Perf event array helpers
-        map.insert(
-            HELPER_PERF_EVENT_OUTPUT,
-            helper_func!(raw_perf_event_output::<F>),
-        );
-        // Probe and trace helpers::Memory helpers
-        map.insert(HELPER_BPF_PROBE_READ, helper_func!(raw_bpf_probe_read));
-        // Print helpers
-        map.insert(HELPER_TRACE_PRINTF, helper_func!(trace_printf::<F>));
 
-        // Map helpers::Queue and stack helpers
-        map.insert(HELPER_MAP_PUSH_ELEM, helper_func!(raw_map_push_elem::<F>));
-        map.insert(HELPER_MAP_POP_ELEM, helper_func!(raw_map_pop_elem::<F>));
-        map.insert(HELPER_MAP_PEEK_ELEM, helper_func!(raw_map_peek_elem::<F>));
+    // Map helpers::Generic map helpers
+    map.insert(
+        HELPER_MAP_LOOKUP_ELEM,
+        helper_func!(raw_map_lookup_elem::<F>),
+    );
+    map.insert(
+        HELPER_MAP_UPDATE_ELEM,
+        helper_func!(raw_map_update_elem::<F>),
+    );
+    map.insert(
+        HELPER_MAP_DELETE_ELEM,
+        helper_func!(raw_map_delete_elem::<F>),
+    );
+    map.insert(HELPER_KTIME_GET_NS, helper_func!(bpf_ktime_get_ns::<F>));
+    map.insert(
+        HELPER_MAP_FOR_EACH_ELEM,
+        helper_func!(raw_map_for_each_elem::<F>),
+    );
+    map.insert(
+        HELPER_MAP_LOOKUP_PERCPU_ELEM,
+        helper_func!(raw_map_lookup_percpu_elem::<F>),
+    );
+    // map.insert(93,define_func!(raw_bpf_spin_lock);
+    // map.insert(94,define_func!(raw_bpf_spin_unlock);
+    // Map helpers::Perf event array helpers
+    map.insert(
+        HELPER_PERF_EVENT_OUTPUT,
+        helper_func!(raw_perf_event_output::<F>),
+    );
+    // Probe and trace helpers::Memory helpers
+    map.insert(HELPER_BPF_PROBE_READ, helper_func!(raw_bpf_probe_read));
+    // Print helpers
+    map.insert(HELPER_TRACE_PRINTF, helper_func!(trace_printf::<F>));
 
-        // Map helpers::User space helpers
-        map.insert(
-            HELPER_PROBE_READ_USER_STR,
-            helper_func!(raw_probe_read_user_str::<F>),
-        );
+    // Map helpers::Queue and stack helpers
+    map.insert(HELPER_MAP_PUSH_ELEM, helper_func!(raw_map_push_elem::<F>));
+    map.insert(HELPER_MAP_POP_ELEM, helper_func!(raw_map_pop_elem::<F>));
+    map.insert(HELPER_MAP_PEEK_ELEM, helper_func!(raw_map_peek_elem::<F>));
 
-        use ringbuf::*;
-        // Ring Buffer helpers
-        map.insert(
-            HELPER_BPF_RINGBUF_OUTPUT,
-            helper_func!(raw_bpf_ringbuf_output::<F>),
-        );
-        map.insert(
-            HELPER_BPF_RINGBUF_RESERVE,
-            helper_func!(raw_bpf_ringbuf_reserve::<F>),
-        );
-        map.insert(
-            HELPER_BPF_RINGBUF_SUBMIT,
-            helper_func!(raw_bpf_ringbuf_submit::<F>),
-        );
-        map.insert(
-            HELPER_BPF_RINGBUF_DISCARD,
-            helper_func!(raw_bpf_ringbuf_discard::<F>),
-        );
-        map.insert(
-            HELPER_BPF_RINGBUF_QUERY,
-            helper_func!(raw_bpf_ringbuf_query::<F>),
-        );
-        map.insert(
-            HELPER_BPF_RINGBUF_RESERVE_DYNPTR,
-            helper_func!(raw_bpf_ringbuf_reserve_dynptr::<F>),
-        );
-        map.insert(
-            HELPER_BPF_RINGBUF_SUBMIT_DYNPTR,
-            helper_func!(raw_bpf_ringbuf_submit_dynptr::<F>),
-        );
-        map.insert(
-            HELPER_BPF_RINGBUF_DISCARD_DYNPTR,
-            helper_func!(raw_bpf_ringbuf_discard_dynptr::<F>),
-        );
-    }
+    // Map helpers::User space helpers
+    map.insert(
+        HELPER_PROBE_READ_USER_STR,
+        helper_func!(raw_probe_read_user_str::<F>),
+    );
+
+    use ringbuf::*;
+    // Ring Buffer helpers
+    map.insert(
+        HELPER_BPF_RINGBUF_OUTPUT,
+        helper_func!(raw_bpf_ringbuf_output::<F>),
+    );
+    map.insert(
+        HELPER_BPF_RINGBUF_RESERVE,
+        helper_func!(raw_bpf_ringbuf_reserve::<F>),
+    );
+    map.insert(
+        HELPER_BPF_RINGBUF_SUBMIT,
+        helper_func!(raw_bpf_ringbuf_submit::<F>),
+    );
+    map.insert(
+        HELPER_BPF_RINGBUF_DISCARD,
+        helper_func!(raw_bpf_ringbuf_discard::<F>),
+    );
+    map.insert(
+        HELPER_BPF_RINGBUF_QUERY,
+        helper_func!(raw_bpf_ringbuf_query::<F>),
+    );
+    map.insert(
+        HELPER_BPF_RINGBUF_RESERVE_DYNPTR,
+        helper_func!(raw_bpf_ringbuf_reserve_dynptr::<F>),
+    );
+    map.insert(
+        HELPER_BPF_RINGBUF_SUBMIT_DYNPTR,
+        helper_func!(raw_bpf_ringbuf_submit_dynptr::<F>),
+    );
+    map.insert(
+        HELPER_BPF_RINGBUF_DISCARD_DYNPTR,
+        helper_func!(raw_bpf_ringbuf_discard_dynptr::<F>),
+    );
+
     map
 }
