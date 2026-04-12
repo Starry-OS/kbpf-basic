@@ -9,18 +9,18 @@
 #![feature(c_variadic)]
 #![allow(unused)]
 extern crate alloc;
-use alloc::string::String;
+use alloc::{string::String, vec::Vec};
 
 use map::UnifiedMap;
+
+use crate::preprocessor::EbpfInst;
 pub mod helper;
 pub mod linux_bpf;
 pub mod map;
 pub mod perf;
-mod preprocessor;
+pub mod preprocessor;
 pub mod prog;
 pub mod raw_tracepoint;
-
-pub use preprocessor::EBPFPreProcessor;
 
 /// Type alias for BPF results and errors.
 pub type BpfResult<T> = axerrno::LinuxResult<T>;
@@ -46,6 +46,8 @@ pub trait KernelAuxiliaryOps: Send + Sync + 'static {
         F: FnOnce(&mut UnifiedMap) -> BpfResult<R>;
     /// Get a unified map pointer from a file descriptor.
     fn get_unified_map_ptr_from_fd(map_fd: u32) -> BpfResult<*const u8>;
+    /// Translate eBPF instructions, which may involve relocating map file descriptors.
+    fn translate_instruction(instruction: Vec<u8>) -> BpfResult<Vec<impl preprocessor::EbpfInst>>;
     /// Copy data from a user space pointer to a kernel space buffer.
     fn copy_from_user(src: *const u8, size: usize, dst: &mut [u8]) -> BpfResult<()>;
     /// Copy data from a kernel space buffer to a user space pointer.
@@ -77,6 +79,29 @@ pub trait KernelAuxiliaryOps: Send + Sync + 'static {
 }
 
 struct DummyAuxImpl;
+
+#[derive(Clone)]
+struct DummyInst;
+impl EbpfInst for DummyInst {
+    fn opc(&self) -> u8 {
+        0
+    }
+
+    fn imm(&self) -> i32 {
+        0
+    }
+
+    fn src(&self) -> u8 {
+        0
+    }
+
+    fn set_imm(&mut self, _imm: i32) {}
+
+    fn to_array(&self) -> [u8; 8] {
+        [0; 8]
+    }
+}
+
 impl KernelAuxiliaryOps for DummyAuxImpl {
     fn get_unified_map_from_ptr<F, R>(_ptr: *const u8, _func: F) -> BpfResult<R>
     where
@@ -94,6 +119,10 @@ impl KernelAuxiliaryOps for DummyAuxImpl {
 
     fn get_unified_map_ptr_from_fd(_map_fd: u32) -> BpfResult<*const u8> {
         Err(BpfError::EPERM)
+    }
+
+    fn translate_instruction(instruction: Vec<u8>) -> BpfResult<Vec<impl preprocessor::EbpfInst>> {
+        Err::<Vec<DummyInst>, BpfError>(BpfError::EPERM)
     }
 
     fn copy_from_user(_src: *const u8, _size: usize, _dst: &mut [u8]) -> BpfResult<()> {
