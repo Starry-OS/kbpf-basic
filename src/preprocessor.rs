@@ -3,7 +3,7 @@ use alloc::{vec, vec::Vec};
 use rbpf::ebpf::{self, to_insn_vec};
 
 use crate::{
-    KernelAuxiliaryOps, Result,
+    BpfResult as Result, KernelAuxiliaryOps,
     linux_bpf::{BPF_PSEUDO_MAP_FD, BPF_PSEUDO_MAP_VALUE},
 };
 

@@ -10,7 +10,7 @@ use core::{
 use consts::BPF_F_CURRENT_CPU;
 
 use crate::{
-    BpfError, KernelAuxiliaryOps, Result,
+    BpfError, BpfResult as Result, KernelAuxiliaryOps,
     map::{BpfCallBackFn, UnifiedMap},
 };
 

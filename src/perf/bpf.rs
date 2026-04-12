@@ -3,7 +3,7 @@
 use core::any::Any;
 
 use super::util::{PerfProbeArgs, *};
-use crate::{BpfError, Result, linux_bpf::*};
+use crate::{BpfError, BpfResult as Result, linux_bpf::*};
 
 const PAGE_SIZE: usize = 4096;
 

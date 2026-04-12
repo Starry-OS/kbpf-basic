@@ -13,7 +13,7 @@ use core::{
 };
 
 use crate::{
-    BpfError, KernelAuxiliaryOps, PollWaker, Result,
+    BpfError, BpfResult as Result, KernelAuxiliaryOps, PollWaker,
     helper::ringbuf::BpfRingbufFlags,
     map::{BpfMapCommonOps, BpfMapMeta, flags::BpfMapCreateFlags, stream::InnerPage},
 };

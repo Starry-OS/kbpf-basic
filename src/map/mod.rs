@@ -16,7 +16,7 @@ use alloc::{
 use core::{any::Any, ffi::CStr, fmt::Debug, ops::Range};
 
 use crate::{
-    BpfError, KernelAuxiliaryOps, PollWaker, Result,
+    BpfError, BpfResult as Result, KernelAuxiliaryOps, PollWaker,
     linux_bpf::{BpfMapType, bpf_attr},
     map::flags::BpfMapCreateFlags,
 };

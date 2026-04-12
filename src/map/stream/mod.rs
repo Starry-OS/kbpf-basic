@@ -1,7 +1,7 @@
 pub(crate) mod ringbuf;
 pub use ringbuf::RingBufMap;
 
-use crate::{BpfError, KernelAuxiliaryOps, Result};
+use crate::{BpfError, BpfResult as Result, KernelAuxiliaryOps};
 
 #[derive(Debug)]
 struct InnerPage<F: KernelAuxiliaryOps> {

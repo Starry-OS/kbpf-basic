@@ -5,7 +5,7 @@ use super::{
     BpfCallBackFn, BpfMapCommonOps, BpfMapMeta, BpfMapUpdateElemFlags, PerCpuVariants,
     PerCpuVariantsOps, round_up,
 };
-use crate::{BpfError, Result};
+use crate::{BpfError, BpfResult as Result};
 
 /// The array map type is a generic map type with no restrictions on the structure of the value.
 /// Like a normal array, the array map has a numeric key starting at 0 and incrementing.
